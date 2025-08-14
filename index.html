@@ -1,0 +1,884 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>MINIDocs</title>
+
+<!-- Inter font -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+<!-- favicon (restored) -->
+<link rel="icon" href="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754830711/MINIApps/MINIDocs_jgpu2c.png" />
+
+<!-- KaTeX -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css" />
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+
+<!-- Mammoth for .docx import (optional) -->
+<script src="https://cdn.jsdelivr.net/npm/mammoth/mammoth.browser.min.js"></script>
+
+<!-- docx export and FileSaver -->
+<script src="https://cdn.jsdelivr.net/npm/docx@7.7.0/build/index.browser.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+
+<style>
+:root{
+  --bg:#f6f8fb;
+  --panel:#ffffff;
+  --muted:#738095;
+  --primary:#59A1FF;
+  --border:#e6eefb;
+  --radius:12px;
+  --btn-radius:10px;
+  font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Arial;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:#0f1720}
+.app{height:100vh;display:flex;flex-direction:column;padding:12px;gap:12px}
+
+/* topbar */
+.topbar{display:flex;align-items:center;gap:12px;background:var(--panel);padding:10px;border-radius:var(--radius);box-shadow:0 1px 0 rgba(0,0,0,0.03)}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;color:#0b2b3d}
+.brand img{width:30px;height:30px;border-radius:8px}
+.menus{display:flex;gap:8px;align-items:center;margin-left:8px}
+.menu{position:relative}
+.menu-btn{background:transparent;border:none;padding:8px 12px;border-radius:10px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:8px;color:#0b2b3d}
+.menu-btn img.menu-icon{width:18px;height:18px;display:inline-block}
+.menu-btn:hover{background:rgba(0,0,0,0.04)}
+.dropdown{position:absolute;top:calc(100% + 8px);left:0;background:var(--panel);border-radius:10px;padding:8px;box-shadow:0 10px 30px rgba(13,20,30,0.08);min-width:240px;display:none;z-index:40}
+.dropdown button{display:flex;align-items:center;gap:8px;width:100%;padding:8px 10px;border:none;background:transparent;border-radius:8px;cursor:pointer}
+.dropdown button:hover{background:rgba(0,0,0,0.03)}
+.dropdown button img.menu-icon{width:16px;height:16px}
+
+/* toolbar actions */
+.toolbar-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+.btn{background:var(--primary);color:#fff;border:none;padding:8px 12px;border-radius:var(--btn-radius);cursor:pointer;font-weight:600}
+.btn.ghost{background:transparent;color:var(--primary);border:1px solid rgba(89,161,255,0.12)}
+.icon-btn{width:36px;height:36px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+
+/* format bar */
+.formatbar{display:flex;gap:8px;background:transparent;align-items:center;padding:6px 4px;border-radius:8px}
+.select{padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:#fff}
+.input-small{padding:6px 8px;border-radius:8px;border:1px solid var(--border);background:#fff;width:80px}
+
+/* editor */
+.editor-wrap{flex:1;display:flex;gap:12px;min-height:0}
+.doc-panel{flex:1;display:flex;flex-direction:column;background:var(--panel);border-radius:12px;padding:14px;box-shadow:0 6px 18px rgba(10,20,40,0.04);overflow:hidden}
+.doc-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.doc-title{font-weight:700}
+.editor{flex:1;background:#fff;border:1px solid var(--border);border-radius:10px;padding:18px;overflow:auto;min-height:480px}
+[contenteditable="true"]:focus{outline:2px solid rgba(89,161,255,0.12)}
+
+/* context menu */
+.context-menu{position:fixed;background:var(--panel);border-radius:10px;padding:8px;box-shadow:0 8px 24px rgba(10,15,20,0.08);display:none;z-index:9999}
+.context-menu button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;padding:8px;border:none;background:transparent;border-radius:8px;cursor:pointer}
+.context-menu button:hover{background:rgba(0,0,0,0.03)}
+.context-menu img.menu-icon{width:16px;height:16px}
+
+/* modal */
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,0.32);display:none;align-items:center;justify-content:center;z-index:10000}
+.modal{background:var(--panel);padding:18px;border-radius:12px;width:560px;max-width:94%}
+.modal h3{margin:0 0 8px}
+.field{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.input{padding:8px;border-radius:8px;border:1px solid var(--border);font-family:Inter}
+.hint{color:var(--muted);font-size:13px}
+
+/* templates buttons uniform */
+.templates-row{display:flex;gap:8px;margin-top:12px}
+.templates-row button{flex:1;padding:10px;border-radius:8px;border:none;background:var(--primary);color:#fff;font-weight:600}
+
+/* saved toast top-right */
+.save-toast{position:fixed;top:18px;right:18px;background:rgba(255,255,255,0.98);border:1px solid var(--border);padding:8px 10px;border-radius:12px;display:flex;align-items:center;gap:8px;box-shadow:0 8px 22px rgba(0,0,0,0.08);z-index:120}
+.save-toast img{width:18px;height:18px}
+.save-toast.hidden{display:none}
+
+/* fonts upload row */
+.font-upload-row{display:flex;gap:8px;align-items:center;margin-top:8px}
+.small-muted{font-size:13px;color:var(--muted)}
+
+/* small helpers */
+.katex-inline{display:inline-block;vertical-align:middle}
+.subtle-link{color:inherit;text-decoration:underline}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+  <!-- Saved toast -->
+  <div id="saveToast" class="save-toast hidden" role="status" aria-live="polite">
+    <img src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754833667/MINIApps/MINIDocsIcons/Mask_group_808_imdj1r.png" alt="saved">
+    <div style="font-weight:600">Saved</div>
+  </div>
+
+  <!-- topbar -->
+  <div class="topbar" role="banner">
+    <div class="brand" aria-hidden="false">
+      <img src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754830711/MINIApps/MINIDocs_jgpu2c.png" alt="MINIDocs logo">
+      <div style="font-size:16px">MINIDocs</div>
+    </div>
+
+    <div class="menus" role="menubar" aria-label="Main menu">
+      <!-- File -->
+      <div class="menu" id="mFile">
+        <button class="menu-btn" aria-haspopup="true">
+          <img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754831878/MINIApps/MINIDocsIcons/Mask_group-20_qrxvhv.png" alt="">
+          <span>File</span>
+        </button>
+        <div class="dropdown" role="menu" aria-hidden="true">
+          <button id="newDocBtn" role="menuitem"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754831879/MINIApps/MINIDocsIcons/Mask_group-23_cyysxy.png" alt=""> New</button>
+          <button id="openBtn" role="menuitem"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754831877/MINIApps/MINIDocsIcons/Mask_group-18_kfgw2g.png" alt=""> Open...</button>
+          <button id="exportDocxBtn" role="menuitem"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754832992/MINIApps/MINIDocsIcons/Mask_group_202_xrcku7.png" alt=""> Export .docx</button>
+          <button id="exportHtmlBtn" role="menuitem"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754832992/MINIApps/MINIDocsIcons/Mask_group_303_c29cnl.png" alt=""> Export .html</button>
+          <button id="exportTxtBtn" role="menuitem"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754832992/MINIApps/MINIDocsIcons/Mask_group_404_wtmocs.png" alt=""> Export .txt</button>
+          <button id="printBtn" role="menuitem"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754831877/MINIApps/MINIDocsIcons/Mask_group-19_czryfc.png" alt=""> Print</button>
+        </div>
+      </div>
+
+      <!-- Edit -->
+      <div class="menu" id="mEdit">
+        <button class="menu-btn"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754831878/MINIApps/MINIDocsIcons/Mask_group-21_tkx9dj.png" alt=""><span>Edit</span></button>
+        <div class="dropdown" role="menu" aria-hidden="true">
+          <button id="undoBtn"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754831876/MINIApps/MINIDocsIcons/Mask_group-16_ej1hp7.png" alt=""> Undo (Ctrl+Z)</button>
+          <button id="redoBtn"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754831876/MINIApps/MINIDocsIcons/Mask_group-15_mm9zcf.png" alt=""> Redo (Ctrl+Y)</button>
+          <button id="cutBtn"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754831875/MINIApps/MINIDocsIcons/Mask_group-14_chtqeb.png" alt=""> Cut</button>
+          <button id="copyBtn"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754831871/MINIApps/MINIDocsIcons/Mask_group-2_xhg1c3.png" alt=""> Copy</button>
+          <button id="pasteBtn"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754831871/MINIApps/MINIDocsIcons/Mask_group-3_qtqxke.png" alt=""> Paste</button>
+          <button id="selectAllBtn"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754833301/MINIApps/MINIDocsIcons/Mask_group_505_w6iamh.png" alt=""> Select all</button>
+        </div>
+      </div>
+
+      <!-- Insert -->
+      <div class="menu" id="mInsert">
+        <button class="menu-btn"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754831879/MINIApps/MINIDocsIcons/Mask_group-23_cyysxy.png" alt=""><span>Insert</span></button>
+        <div class="dropdown" role="menu" aria-hidden="true">
+          <button id="insertImageBtn"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754831872/MINIApps/MINIDocsIcons/Mask_group-6_agwdk3.png" alt=""> Image...</button>
+          <button id="insertTableBtn"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754833497/MINIApps/MINIDocsIcons/Mask_group_606_oxrum4.png" alt=""> Table...</button>
+          <button id="insertLinkBtn"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754831872/MINIApps/MINIDocsIcons/Mask_group-7_ol9t3u.png" alt=""> Link...</button>
+          <button id="insertEquationBtn"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754833498/MINIApps/MINIDocsIcons/Mask_group_707_iergse.png" alt=""> Equation...</button>
+        </div>
+      </div>
+
+      <!-- Format (list entries as separate items, no separators) -->
+      <div class="menu" id="mFormat">
+        <button class="menu-btn"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754831879/MINIApps/MINIDocsIcons/Mask_group-22_tuifs1.png" alt=""><span>Format</span></button>
+        <div class="dropdown" role="menu" aria-hidden="true">
+          <button id="boldBtn"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754831872/MINIApps/MINIDocsIcons/Mask_group-8_xvesrt.png" alt=""> Bold</button>
+          <button id="italicBtn"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754831872/MINIApps/MINIDocsIcons/Mask_group-8_xvesrt.png" alt=""> Italic</button>
+          <button id="underlineBtn"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754831873/MINIApps/MINIDocsIcons/Mask_group-10_fmnqzz.png" alt=""> Underline</button>
+          <button id="strikeBtn"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754831874/MINIApps/MINIDocsIcons/Mask_group-11_shgal0.png" alt=""> Strikethrough</button>
+
+          <button id="listNumbered" title="Numbered list"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754834152/MINIApps/MINIDocsIcons/Mask_group_22_vayglc.png" alt=""> Numbered list</button>
+          <button id="listBulleted" title="Bulleted list"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754834206/MINIApps/MINIDocsIcons/Mask_group_11_lq31yf.png" alt=""> Bulleted list</button>
+          <button id="listBlockquote" title="Blockquote"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754834205/MINIApps/MINIDocsIcons/Mask_group_1_jymhsn.png" alt=""> Blockquote</button>
+
+          <button id="alignLeft"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754831874/MINIApps/MINIDocsIcons/Mask_group-12_csqdma.png" alt=""> Align left</button>
+          <button id="alignCenter"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754831875/MINIApps/MINIDocsIcons/Mask_group-13_j0jdoz.png" alt=""> Align center</button>
+          <button id="alignRight"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754831870/MINIApps/MINIDocsIcons/Mask_group-1_caffvd.png" alt=""> Align right</button>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="toolbar-actions">
+      <button id="templatesBtn" class="btn ghost">Templates</button>
+      <button id="fontsBtn" class="btn ghost">Fonts</button>
+      <button id="infoBtn" class="btn">Info</button>
+    </div>
+  </div>
+
+  <!-- format bar -->
+  <div class="formatbar" role="toolbar" aria-label="Formatting toolbar">
+    <select id="styleSelect" class="select" title="Paragraph style">
+      <option value="normal">Normal text</option>
+      <option value="h1">Heading 1</option>
+      <option value="h2">Heading 2</option>
+      <option value="h3">Heading 3</option>
+    </select>
+
+    <select id="fontSelect" class="select" title="Font family">
+      <option value="Inter">Inter (default)</option>
+      <option value="serif">Serif</option>
+      <option value="monospace">Monospace</option>
+    </select>
+
+    <select id="fontSizeSelect" class="select" title="Font size">
+      <option value="12px">12</option>
+      <option value="14px">14</option>
+      <option value="16px" selected>16</option>
+      <option value="18px">18</option>
+      <option value="20px">20</option>
+      <option value="24px">24</option>
+      <option value="32px">32</option>
+      <option value="36px">36</option>
+      <option value="48px">48</option>
+      <option value="72px">72</option>
+      <option value="custom">Custom...</option>
+    </select>
+
+    <input id="fontSizeCustom" class="input-small" type="number" min="6" max="200" placeholder="px" style="display:none">
+  </div>
+
+  <!-- editor -->
+  <div class="editor-wrap" role="main">
+    <div class="doc-panel">
+      <div class="doc-toolbar">
+        <div class="doc-title" id="docTitle">Untitled document</div>
+        <div style="margin-left:auto" class="hint" aria-hidden="true"></div>
+      </div>
+
+      <div id="editor" class="editor" contenteditable="true" spellcheck="true" aria-label="Document editor">
+        <h1 style="margin-top:0">Untitled document</h1>
+        <p>Start writing...</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden inputs -->
+<input id="fileOpenInput" type="file" accept=".docx,.txt,.html,.htm,.rtf" style="display:none">
+<input id="imgFileInput" type="file" accept="image/*" style="display:none">
+<input id="fontFileInput" type="file" accept=".woff,.woff2,.ttf,.otf" style="display:none">
+
+<!-- context menu -->
+<div id="ctxMenu" class="context-menu" role="menu" aria-hidden="true">
+  <button data-action="cut"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754831875/MINIApps/MINIDocsIcons/Mask_group-14_chtqeb.png" alt=""> Cut</button>
+  <button data-action="copy"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754831871/MINIApps/MINIDocsIcons/Mask_group-2_xhg1c3.png" alt=""> Copy</button>
+  <button data-action="paste"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754831871/MINIApps/MINIDocsIcons/Mask_group-3_qtqxke.png" alt=""> Paste</button>
+  <hr style="border:none;border-top:1px solid #eee;margin:6px 0">
+  <button data-action="link"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754831872/MINIApps/MINIDocsIcons/Mask_group-7_ol9t3u.png" alt=""> Insert link</button>
+  <button data-action="image"><img class="menu-icon" src="https://res.cloudinary.com/dk0f2y0hu/image/upload/v1754831872/MINIApps/MINIDocsIcons/Mask_group-6_agwdk3.png" alt=""> Insert image</button>
+</div>
+
+<!-- Templates modal -->
+<div id="templatesModal" class="modal-backdrop" aria-hidden="true">
+  <div class="modal" role="dialog">
+    <h3>Templates</h3>
+    <p class="hint">Choose a template to load. This will replace the current content (it autosaves).</p>
+    <div class="templates-row">
+      <button data-template="letter">Letter</button>
+      <button data-template="report">Report</button>
+      <button data-template="notes">Notes</button>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:12px">
+      <button class="btn ghost" id="closeTemplates">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Fonts modal (local font upload support) -->
+<div id="fontsModal" class="modal-backdrop" aria-hidden="true">
+  <div class="modal" role="dialog">
+    <h3>Fonts</h3>
+    <p class="hint">Add a Google Fonts link or upload a local font file.</p>
+    <div class="field">
+      <label class="muted">Google Fonts URL</label>
+      <input id="fontUrlInput" class="input" placeholder="https://fonts.googleapis.com/..." />
+      <label class="muted">Font name (as used in CSS)</label>
+      <input id="fontNameInput" class="input" placeholder="Font name (e.g. Roboto)" />
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+        <button class="btn ghost" id="addGoogleFontBtn">Add Google Font</button>
+      </div>
+
+      <hr style="border:none;border-top:1px solid var(--border);margin:10px 0">
+
+      <div class="small-muted">Upload local font file (.woff/.woff2/.ttf/.otf)</div>
+      <div class="font-upload-row">
+        <input id="fontFileName" class="input" placeholder="No file chosen" readonly>
+        <button id="chooseFontFileBtn" class="btn ghost">Choose file</button>
+        <input id="fontNameLocal" class="input" placeholder="Font name to register" style="width:200px">
+        <button id="uploadFontBtn" class="btn">Upload</button>
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+        <button class="btn ghost" id="closeFonts">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Link modal -->
+<div id="linkModal" class="modal-backdrop" aria-hidden="true">
+  <div class="modal" role="dialog">
+    <h3>Insert link</h3>
+    <div class="field">
+      <label class="muted">URL</label>
+      <input id="linkUrl" class="input" placeholder="https://example.com" />
+      <label class="muted">Display text (optional)</label>
+      <input id="linkText" class="input" placeholder="Text to display (if empty will use selection)" />
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+      <button class="btn ghost" id="cancelLink">Cancel</button>
+      <button class="btn" id="applyLink">Insert</button>
+    </div>
+  </div>
+</div>
+
+<!-- Export modal -->
+<div id="exportModal" class="modal-backdrop" aria-hidden="true">
+  <div class="modal" role="dialog">
+    <h3>Export</h3>
+    <p class="hint">Choose format and filename (without extension)</p>
+    <div class="field">
+      <label class="muted">Format</label>
+      <select id="exportFormat" class="input">
+        <option value="docx">.docx (basic)</option>
+        <option value="html">.html</option>
+        <option value="txt">.txt</option>
+      </select>
+      <label class="muted">Filename</label>
+      <input id="exportFilename" class="input" placeholder="Untitled" value="Untitled" />
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">
+      <button class="btn ghost" id="cancelExport">Cancel</button>
+      <button class="btn" id="confirmExport">Export</button>
+    </div>
+  </div>
+</div>
+
+<!-- Equation modal -->
+<div id="equationModal" class="modal-backdrop" aria-hidden="true">
+  <div class="modal" role="dialog">
+    <h3>Insert equation (LaTeX)</h3>
+    <textarea id="equationInput" class="input" placeholder="E.g. \frac{a}{b} = c" style="min-height:120px"></textarea>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+      <button class="btn ghost" id="cancelEquation">Cancel</button>
+      <button class="btn" id="insertEquation">Insert</button>
+    </div>
+  </div>
+</div>
+
+<!-- Table modal -->
+<div id="tableModal" class="modal-backdrop" aria-hidden="true">
+  <div class="modal" role="dialog">
+    <h3>Insert table</h3>
+    <div class="hint">Pick rows and columns</div>
+    <div style="display:flex;gap:8px;margin-top:10px;align-items:center">
+      <label class="muted">Rows</label>
+      <input id="tableRows" class="input" type="number" min="1" max="30" value="3" style="width:80px">
+      <label class="muted">Cols</label>
+      <input id="tableCols" class="input" type="number" min="1" max="12" value="3" style="width:80px">
+      <div style="margin-left:auto">
+        <button class="btn" id="insertTableConfirm">Insert</button>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:12px">
+      <button class="btn ghost" id="closeTableModal">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Info modal -->
+<div id="infoModal" class="modal-backdrop" aria-hidden="true">
+  <div class="modal" role="dialog">
+    <h3>Info</h3>
+    <p class="hint">MINIDocs — simple offline document editor. See credits below.</p>
+    <div style="display:flex;gap:12px;justify-content:center;margin-top:12px;font-size:13px">
+      <div>Made by <a class="subtle-link" href="https://lollo.framer.website" target="_blank" rel="noopener">lollo21</a></div>
+      <div>Icons by <a class="subtle-link" href="https://icons8.it" target="_blank" rel="noopener">Icons8</a></div>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:12px">
+      <button class="btn ghost" id="closeInfo">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* MINIDocs final modifications:
+   - removed Apply button
+   - docx export improved (basic headings, paragraphs, tables)
+   - Saved toast appears on every input (immediate save)
+   - custom right-click menu integrated with icons and functioning cut/copy/paste/link/image
+   - local font upload kept
+*/
+
+(() => {
+  const STORAGE_KEY = "minidocs_v4";
+  const editor = document.getElementById("editor");
+  const fileInput = document.getElementById("fileOpenInput");
+  const imgFileInput = document.getElementById("imgFileInput");
+  const fontFileInput = document.getElementById("fontFileInput");
+
+  // Dropdown toggles
+  document.querySelectorAll(".menu").forEach(m=>{
+    const btn = m.querySelector(".menu-btn");
+    const dd = m.querySelector(".dropdown");
+    btn.addEventListener("click", (e)=>{
+      e.stopPropagation();
+      document.querySelectorAll(".dropdown").forEach(d=>{ if(d!==dd) d.style.display='none'; });
+      dd.style.display = dd.style.display === 'block' ? 'none' : 'block';
+    });
+  });
+  window.addEventListener("click", ()=> document.querySelectorAll(".dropdown").forEach(d=> d.style.display='none'));
+
+  function exec(cmd, val=null){
+    try { document.execCommand(cmd, false, val); } catch(e){ console.warn(e); }
+    editor.focus();
+  }
+
+  function execInsertHtml(html){
+    const sel = window.getSelection();
+    if(!sel || sel.rangeCount === 0){ editor.insertAdjacentHTML('beforeend', html); return; }
+    const range = sel.getRangeAt(0);
+    range.deleteContents();
+    const frag = range.createContextualFragment(html);
+    range.insertNode(frag);
+    // move caret after fragment
+    sel.collapseToEnd();
+  }
+
+  // ---------- File actions ----------
+  document.getElementById("newDocBtn").addEventListener("click", ()=>{
+    if(!confirm("Create new document? Current content will be cleared.")) return;
+    editor.innerHTML = "<h1 style='margin-top:0'>Untitled document</h1><p>Start writing...</p>";
+    document.getElementById("docTitle").textContent = "Untitled document";
+    saveNow();
+  });
+
+  document.getElementById("openBtn").addEventListener("click", ()=> fileInput.click());
+  fileInput.addEventListener("change", async (ev)=>{
+    const f = ev.target.files[0];
+    if(!f) return;
+    const name = f.name.toLowerCase();
+    if(name.endsWith(".docx")){
+      const ab = await f.arrayBuffer();
+      mammoth.convertToHtml({arrayBuffer:ab})
+        .then(result=>{ editor.innerHTML = result.value; saveNow(); })
+        .catch(err=> alert("Import error: " + (err.message||err)));
+    } else if(name.endsWith(".txt")){
+      const txt = await f.text(); editor.textContent = txt; saveNow();
+    } else if(name.endsWith(".html") || name.endsWith(".htm")){
+      const txt = await f.text(); editor.innerHTML = txt; saveNow();
+    } else if(name.endsWith(".rtf")){
+      const txt = await f.text();
+      const plain = txt.replace(/\\'[0-9a-f]{2}/g,'').replace(/\\[a-z]+\d* ?/gi,'').replace(/[{}]/g,'').replace(/\r\n/g,'\n');
+      editor.textContent = plain; saveNow();
+    } else {
+      alert("Unsupported import type. Try .docx, .html, or .txt.");
+    }
+    ev.target.value = "";
+  });
+
+  // ---------- Export ----------
+  document.getElementById("exportDocxBtn").addEventListener("click", ()=> openModal('exportModal', { format: 'docx' }));
+  document.getElementById("exportHtmlBtn").addEventListener("click", ()=> openModal('exportModal', { format: 'html' }));
+  document.getElementById("exportTxtBtn").addEventListener("click", ()=> openModal('exportModal', { format: 'txt' }));
+  document.getElementById("cancelExport").addEventListener("click", ()=> closeModal('exportModal'));
+
+  document.getElementById("confirmExport").addEventListener("click", async ()=>{
+    const fmt = document.getElementById("exportFormat").value;
+    const fname = (document.getElementById("exportFilename").value || "Untitled").trim();
+    closeModal('exportModal');
+    if(fmt === "html"){
+      const blob = new Blob([editor.innerHTML], {type:'text/html;charset=utf-8'});
+      saveAs(blob, fname + ".html");
+    } else if(fmt === "txt"){
+      const blob = new Blob([editor.innerText], {type:'text/plain;charset=utf-8'});
+      saveAs(blob, fname + ".txt");
+    } else if(fmt === "docx"){
+      try {
+        await exportDocx(fname || "Untitled");
+      } catch(err){
+        alert("Export .docx failed: " + (err.message || err));
+      }
+    }
+  });
+
+  // improved docx export: converts headings, paragraphs and tables
+  async function exportDocx(filename = "Untitled") {
+    const { Document, Packer, Paragraph, TextRun, HeadingLevel, Table, TableRow, TableCell } = window.docx;
+    const doc = new Document();
+    const children = Array.from(editor.childNodes);
+
+    function nodeToParagraphs(node) {
+      const list = [];
+      if(node.nodeType === Node.TEXT_NODE) {
+        const t = node.textContent.trim();
+        if(t) list.push(new Paragraph({ children:[ new TextRun({ text: t }) ] }));
+        return list;
+      }
+      if(node.nodeType !== Node.ELEMENT_NODE) return list;
+
+      const tag = node.tagName.toUpperCase();
+      if(tag === 'P') {
+        const text = node.innerText || node.textContent || "";
+        list.push(new Paragraph({ children:[ new TextRun(String(text)) ] }));
+      } else if(/^H[1-6]$/.test(tag)) {
+        const lvl = parseInt(tag[1],10);
+        const text = node.innerText || node.textContent || "";
+        list.push(new Paragraph({ text: String(text), heading: [HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3, HeadingLevel.HEADING_4, HeadingLevel.HEADING_5, HeadingLevel.HEADING_6][Math.min(lvl-1,5)] }));
+      } else if(tag === 'TABLE') {
+        // convert to docx Table
+        const rows = Array.from(node.rows || []);
+        const docRows = rows.map(r => {
+          const cells = Array.from(r.cells || []).map(c => new TableCell({ children: [ new Paragraph(String(c.innerText || c.textContent || "")) ] }));
+          return new TableRow({ children: cells });
+        });
+        const tbl = new Table({ rows: docRows });
+        list.push(tbl);
+      } else if(tag === 'DIV' || tag === 'SECTION' || tag === 'ARTICLE'){
+        Array.from(node.childNodes).forEach(n => { nodeToParagraphs(n).forEach(p => list.push(p)); });
+      } else {
+        // fallback: treat as paragraph
+        const text = node.innerText || node.textContent || "";
+        if(text.trim()) list.push(new Paragraph({ children:[ new TextRun(String(text)) ] }));
+      }
+      return list;
+    }
+
+    const docChildren = [];
+    children.forEach(ch => {
+      const items = nodeToParagraphs(ch);
+      items.forEach(i => docChildren.push(i));
+    });
+
+    if(docChildren.length === 0) docChildren.push(new Paragraph({ children:[ new TextRun("") ] }));
+    doc.addSection({ children: docChildren });
+
+    const blob = await Packer.toBlob(doc);
+    saveAs(blob, filename + ".docx");
+  }
+
+  // Print
+  document.getElementById("printBtn").addEventListener("click", ()=>{
+    const w = window.open('','_blank','noopener');
+    if(!w){ alert("Popup blocked — allow popups to print."); return; }
+    const style = `<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+      <style>body{font-family:Inter,Arial;margin:20px;color:#111}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ddd;padding:6px}</style>`;
+    w.document.open();
+    w.document.write(`<html><head><title>MINIDocs - Print</title>${style}</head><body>${editor.innerHTML}</body></html>`);
+    w.document.close();
+    setTimeout(()=> w.print(), 400);
+  });
+
+  // ---------- Edit ----------
+  document.getElementById("undoBtn").addEventListener("click", ()=> exec("undo"));
+  document.getElementById("redoBtn").addEventListener("click", ()=> exec("redo"));
+  document.getElementById("cutBtn").addEventListener("click", ()=> tryCut());
+  document.getElementById("copyBtn").addEventListener("click", ()=> tryCopy());
+  document.getElementById("pasteBtn").addEventListener("click", ()=> tryPaste());
+  document.getElementById("selectAllBtn").addEventListener("click", ()=> exec("selectAll"));
+
+  async function tryCopy(){
+    try { exec('copy'); } catch(e) { console.warn(e); }
+  }
+  async function tryCut(){
+    try { exec('cut'); } catch(e) { console.warn(e); }
+    saveNow();
+  }
+  async function tryPaste(){
+    // try Clipboard API first
+    try {
+      if(navigator.clipboard && navigator.clipboard.readText){
+        const txt = await navigator.clipboard.readText();
+        if(txt !== undefined){
+          execInsertHtml(escapeHtml(txt).replace(/\n/g,'<br>'));
+          saveNow();
+          return;
+        }
+      }
+    } catch(e){ /* ignore */ }
+    // fallback
+    try { exec('paste'); saveNow(); } catch(e){ alert("Paste not available. Use Ctrl+V."); }
+  }
+
+  // ---------- Insert ----------
+  document.getElementById("insertImageBtn").addEventListener("click", ()=> imgFileInput.click());
+  imgFileInput.addEventListener("change", (ev)=>{
+    const f = ev.target.files[0];
+    if(!f) return;
+    const r = new FileReader();
+    r.onload = e => { execInsertHtml(`<img src="${e.target.result}" style="max-width:100%;height:auto;border-radius:6px">`); saveNow(); };
+    r.readAsDataURL(f);
+    ev.target.value = "";
+  });
+
+  document.getElementById("insertTableBtn").addEventListener("click", ()=> openModal('tableModal'));
+  document.getElementById("insertLinkBtn").addEventListener("click", ()=> openModal('linkModal'));
+  document.getElementById("insertEquationBtn").addEventListener("click", ()=> openModal('equationModal'));
+
+  // ---------- Format ----------
+  document.getElementById("boldBtn").addEventListener("click", ()=> { exec("bold"); saveNow(); });
+  document.getElementById("italicBtn").addEventListener("click", ()=> { exec("italic"); saveNow(); });
+  document.getElementById("underlineBtn").addEventListener("click", ()=> { exec("underline"); saveNow(); });
+  document.getElementById("strikeBtn").addEventListener("click", ()=> { exec("strikeThrough"); saveNow(); });
+
+  document.getElementById("listNumbered").addEventListener("click", ()=> { exec("insertOrderedList"); saveNow(); });
+  document.getElementById("listBulleted").addEventListener("click", ()=> { exec("insertUnorderedList"); saveNow(); });
+  document.getElementById("listBlockquote").addEventListener("click", ()=> { exec("formatBlock","<blockquote>"); saveNow(); });
+
+  document.getElementById("alignLeft").addEventListener("click", ()=> { exec("justifyLeft"); saveNow(); });
+  document.getElementById("alignCenter").addEventListener("click", ()=> { exec("justifyCenter"); saveNow(); });
+  document.getElementById("alignRight").addEventListener("click", ()=> { exec("justifyRight"); saveNow(); });
+
+  // ---------- Style & font size ----------
+  document.getElementById("styleSelect").addEventListener("change", (e)=>{
+    const v = e.target.value;
+    if(v==="normal") exec("formatBlock", "<p>");
+    else if(v==="h1") exec("formatBlock", "<h1>");
+    else if(v==="h2") exec("formatBlock", "<h2>");
+    else if(v==="h3") exec("formatBlock", "<h3>");
+    saveNow();
+  });
+
+  document.getElementById("fontSelect").addEventListener("change", (e)=>{ exec("fontName", e.target.value); saveNow(); });
+
+  const fontSizeSelect = document.getElementById("fontSizeSelect");
+  const fontSizeCustom = document.getElementById("fontSizeCustom");
+
+  fontSizeSelect.addEventListener("change", (e)=>{
+    if(e.target.value === "custom"){ fontSizeCustom.style.display = "inline-block"; fontSizeCustom.focus(); }
+    else { fontSizeCustom.style.display = "none"; applyFontSize(e.target.value); saveNow(); }
+  });
+
+  // apply custom on Enter
+  fontSizeCustom.addEventListener("keydown", (ev)=>{
+    if(ev.key === "Enter"){
+      ev.preventDefault();
+      const n = parseInt(fontSizeCustom.value,10);
+      if(!n || n < 6){ alert("Enter valid size >= 6px"); return; }
+      applyFontSize(n + "px");
+      fontSizeCustom.blur();
+      saveNow();
+    }
+  });
+
+  function applyFontSize(size){
+    if(!window.getSelection || !window.getSelection().rangeCount){ alert("Select text to apply size."); return; }
+    const range = window.getSelection().getRangeAt(0);
+    if(range.collapsed){
+      const span = document.createElement("span"); span.style.fontSize = size; span.textContent = "\u200B"; range.insertNode(span);
+      const sel = window.getSelection(); sel.collapse(span, span.childNodes.length);
+    } else {
+      const span = document.createElement("span"); span.style.fontSize = size;
+      try {
+        span.appendChild(range.cloneContents());
+        range.deleteContents();
+        range.insertNode(span);
+      } catch (err) {
+        exec("fontSize", 7);
+      }
+    }
+  }
+
+  // ---------- Templates ----------
+  const templates = {
+    letter:`<div><h1 style="margin-top:0">[Your Name]</h1><p>[Address Line 1]</p><p>[Address Line 2]</p><p>Date: ${new Date().toLocaleDateString()}</p><p>Dear [Name],</p><p>Write your letter here.</p><p>Sincerely,</p><p>[Your Name]</p></div>`,
+    report:`<div><h1 style="margin-top:0">Report Title</h1><h3>Executive Summary</h3><p>Summary...</p><h3>Introduction</h3><p>Intro text...</p><h3>Results</h3><p>Results here...</p></div>`,
+    notes:`<div><h1 style="margin-top:0">Notes</h1><ul><li>Point one</li><li>Point two</li><li>Point three</li></ul></div>`
+  };
+  document.querySelectorAll("[data-template]").forEach(btn=>{
+    btn.addEventListener("click",(e)=>{
+      const t = e.currentTarget.dataset.template;
+      if(!templates[t]) return;
+      if(!confirm("Load template? This will replace current content.")) return;
+      editor.innerHTML = templates[t];
+      saveNow();
+      closeModal('templatesModal');
+    });
+  });
+  document.getElementById("templatesBtn").addEventListener("click", ()=> openModal('templatesModal'));
+  document.getElementById("closeTemplates").addEventListener("click", ()=> closeModal('templatesModal'));
+
+  // ---------- Fonts (Google + local) ----------
+  document.getElementById("fontsBtn").addEventListener("click", ()=> openModal('fontsModal'));
+  document.getElementById("addGoogleFontBtn").addEventListener("click", ()=>{
+    const url = document.getElementById("fontUrlInput").value.trim();
+    const name = document.getElementById("fontNameInput").value.trim();
+    if(!url || !name){ alert("Provide both URL and font name."); return; }
+    const link = document.createElement("link"); link.rel="stylesheet"; link.href = url; document.head.appendChild(link);
+    const opt = document.createElement("option"); opt.value = name; opt.textContent = name; document.getElementById("fontSelect").appendChild(opt);
+    document.getElementById("fontSelect").value = name; exec("fontName", name); closeModal('fontsModal'); saveNow();
+  });
+
+  // local font upload interactions
+  document.getElementById("chooseFontFileBtn").addEventListener("click", ()=> fontFileInput.click());
+  fontFileInput.addEventListener("change", (ev)=>{
+    const f = ev.target.files[0];
+    document.getElementById("fontFileName").value = f ? f.name : "";
+  });
+
+  document.getElementById("uploadFontBtn").addEventListener("click", async ()=>{
+    const files = fontFileInput.files;
+    if(!files || !files[0]){ alert("Choose a font file first."); return; }
+    const f = files[0];
+    const nameInput = document.getElementById("fontNameLocal").value.trim();
+    const fontName = nameInput || (f.name.split('.')[0] || ('Font' + Date.now()));
+    const blobUrl = URL.createObjectURL(f);
+    const style = document.createElement("style");
+    style.type = "text/css";
+    style.textContent = `@font-face{ font-family: "${fontName}"; src: url("${blobUrl}") format("${getFontFormat(f.name)}"); font-weight: normal; font-style: normal; }`;
+    document.head.appendChild(style);
+    const opt = document.createElement("option"); opt.value = fontName; opt.textContent = fontName;
+    document.getElementById("fontSelect").appendChild(opt);
+    document.getElementById("fontSelect").value = fontName;
+    exec("fontName", fontName);
+    document.getElementById("fontFileName").value = "";
+    document.getElementById("fontNameLocal").value = "";
+    fontFileInput.value = "";
+    closeModal('fontsModal');
+    saveNow();
+  });
+
+  function getFontFormat(filename){
+    const ext = filename.split('.').pop().toLowerCase();
+    if(ext === 'woff') return 'woff';
+    if(ext === 'woff2') return 'woff2';
+    if(ext === 'ttf') return 'truetype';
+    if(ext === 'otf') return 'opentype';
+    return 'truetype';
+  }
+  document.getElementById("closeFonts").addEventListener("click", ()=> closeModal('fontsModal'));
+
+  // ---------- Link modal ----------
+  document.getElementById("insertLinkBtn").addEventListener("click", ()=> openModal('linkModal'));
+  document.getElementById("cancelLink").addEventListener("click", ()=> closeModal('linkModal'));
+  document.getElementById("applyLink").addEventListener("click", ()=>{
+    const url = document.getElementById("linkUrl").value.trim();
+    const text = document.getElementById("linkText").value.trim();
+    if(!url){ alert("Please enter a URL."); return; }
+    createLinkAtSelection(url, text || null);
+    closeModal('linkModal'); saveNow();
+  });
+
+  function createLinkAtSelection(url, displayText){
+    const sel = window.getSelection();
+    if(!sel || sel.rangeCount === 0){ execInsertHtml(`<a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(displayText || url)}</a>`); return; }
+    const range = sel.getRangeAt(0);
+    if(range.collapsed){
+      const a = document.createElement("a"); a.href = url; a.target="_blank"; a.rel="noopener"; a.textContent = displayText || url;
+      range.insertNode(a); sel.collapse(a, a.childNodes.length);
+    } else {
+      const contents = range.extractContents();
+      const a = document.createElement("a"); a.href = url; a.target="_blank"; a.rel="noopener";
+      if(displayText) a.textContent = displayText; else a.appendChild(contents);
+      range.insertNode(a);
+    }
+  }
+
+  // ---------- Equation ----------
+  document.getElementById("cancelEquation").addEventListener("click", ()=> closeModal('equationModal'));
+  document.getElementById("insertEquation").addEventListener("click", ()=>{
+    const latex = document.getElementById("equationInput").value.trim();
+    if(!latex) return;
+    try{ const span = document.createElement("span"); span.className="katex-inline"; katex.render(latex, span, {throwOnError:false}); execInsertHtml(span.outerHTML); closeModal('equationModal'); saveNow(); }catch(err){ alert("LaTeX error: " + err.message); }
+  });
+
+  // ---------- Table ----------
+  document.getElementById("insertTableConfirm").addEventListener("click", ()=>{
+    const rows = Math.max(1, parseInt(document.getElementById("tableRows").value || 1,10));
+    const cols = Math.max(1, parseInt(document.getElementById("tableCols").value || 1,10));
+    const table = document.createElement("table"); table.style.borderCollapse='collapse'; table.style.width='100%';
+    for(let r=0;r<rows;r++){
+      const tr = table.insertRow();
+      for(let c=0;c<cols;c++){
+        const td = tr.insertCell(); td.style.border='1px solid #e6eefb'; td.style.padding='8px'; td.innerHTML = '<br>';
+      }
+    }
+    execInsertHtml(table.outerHTML);
+    closeModal('tableModal');
+    saveNow();
+  });
+  document.getElementById("closeTableModal").addEventListener("click", ()=> closeModal('tableModal'));
+
+  // ---------- Info ----------
+  document.getElementById("infoBtn").addEventListener("click", ()=> openModal('infoModal'));
+  document.getElementById("closeInfo").addEventListener("click", ()=> closeModal('infoModal'));
+
+  // ---------- Context menu ----------
+  const ctx = document.getElementById("ctxMenu");
+  editor.addEventListener("contextmenu", (e)=>{
+    e.preventDefault();
+    const x = e.pageX, y = e.pageY;
+    ctx.style.left = x + "px"; ctx.style.top = y + "px"; ctx.style.display = "block";
+  });
+  window.addEventListener("click",(e)=>{ if(!e.target.closest("#ctxMenu")) ctx.style.display='none'; });
+  ctx.addEventListener("click",(e)=>{
+    const action = e.target.closest("button")?.dataset?.action;
+    ctx.style.display='none';
+    if(!action) return;
+    if(action === 'cut') tryCut();
+    if(action === 'copy') tryCopy();
+    if(action === 'paste') tryPaste();
+    if(action === 'link') openModal('linkModal');
+    if(action === 'image') imgFileInput.click();
+  });
+
+  // ---------- Paste from clipboard via key too ----------
+  window.addEventListener("paste", (ev) => {
+    // leave default handling; images are handled via editor paste listener below
+  });
+
+  // ---------- Paste images from clipboard ----------
+  editor.addEventListener("paste",(ev)=>{
+    try{
+      const items = (ev.clipboardData || ev.originalEvent.clipboardData).items;
+      for(let i=0;i<items.length;i++){
+        const it = items[i];
+        if(it.type.indexOf("image") !== -1){
+          ev.preventDefault();
+          const file = it.getAsFile();
+          const rdr = new FileReader();
+          rdr.onload = e => execInsertHtml(`<img src="${e.target.result}" style="max-width:100%;height:auto;border-radius:6px">`);
+          rdr.readAsDataURL(file);
+        }
+      }
+    }catch(e){}
+  });
+
+  // ---------- Autosave & "Saved" toast on every input ----------
+  function saveNow(){
+    try{
+      const payload = { html: editor.innerHTML, title: document.getElementById("docTitle").textContent || "Untitled", ts: Date.now() };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      showSavedToast();
+    }catch(e){ console.warn(e); }
+  }
+  let saveToastTimer = null;
+  function showSavedToast(){
+    const el = document.getElementById("saveToast");
+    if(!el) return;
+    el.classList.remove("hidden");
+    if(saveToastTimer) clearTimeout(saveToastTimer);
+    saveToastTimer = setTimeout(()=> el.classList.add("hidden"), 1000);
+  }
+
+  // Save immediately on input (user requested "on every modification show Saved")
+  editor.addEventListener("input", ()=> saveNow());
+
+  // Save on important actions too
+  function saveNowDebounced() { saveNow(); }
+
+  // before unload
+  window.addEventListener("beforeunload", saveNow);
+
+  // keyboard shortcuts (save ctrl/cmd+s)
+  window.addEventListener("keydown",(e)=>{
+    if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's'){ e.preventDefault(); saveNow(); alert("Document saved locally"); }
+  });
+
+  // modal helpers
+  function openModal(id, opts){ const m = document.getElementById(id); if(!m) return; if(id==='exportModal' && opts){ if(opts.format) document.getElementById("exportFormat").value = opts.format; document.getElementById("exportFilename").value = document.getElementById("docTitle").textContent || "Untitled"; } m.style.display='flex'; m.setAttribute("aria-hidden","false"); }
+  function closeModal(id){ const m = document.getElementById(id); if(!m) return; m.style.display='none'; m.setAttribute("aria-hidden","true"); }
+
+  function escapeHtml(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+  // ---------- Init load ----------
+  (function loadNow(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if(!raw) return;
+      const p = JSON.parse(raw);
+      editor.innerHTML = p.html || editor.innerHTML;
+      document.getElementById("docTitle").textContent = p.title || "Untitled document";
+    }catch(e){ console.warn(e); }
+  })();
+
+  // expose small API
+  window.MINIDocs = { getContent: ()=> editor.innerHTML, setContent: (h)=>{ editor.innerHTML=h; saveNow(); } };
+
+  console.log("MINIDocs v4 ready");
+})();
+</script>
+</body>
+</html>
